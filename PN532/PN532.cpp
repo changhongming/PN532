@@ -500,6 +500,101 @@ uint8_t PN532::mifareclassic_WriteDataBlock (uint8_t blockNumber, uint8_t *data)
     return (0 < HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer)));
 }
 
+uint8_t PN532::mifareclassic_TransferValueBlock (uint8_t blockNumber)
+{
+    /* Prepare the first command */
+    pn532_packetbuffer[0] = PN532_COMMAND_INDATAEXCHANGE;
+    pn532_packetbuffer[1] = 1;                      /* Card number */
+    pn532_packetbuffer[2] = MIFARE_CMD_TRANSFER;       /* Mifare Write command = 0xA0 */
+    pn532_packetbuffer[3] = blockNumber;            /* Block Number (0..63 for 1K, 0..255 for 4K) */
+
+    /* Send the command */
+    if (HAL(writeCommand)(pn532_packetbuffer, 4)) {
+        return 0;
+    }
+
+    /* Read the response packet */
+    return (0 < HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer)));
+}
+
+uint8_t PN532::mifareclassic_IncrementValueBlock (uint8_t blockNumber, uint32_t value)
+{
+    /* Prepare the first command */
+    pn532_packetbuffer[0] = PN532_COMMAND_INDATAEXCHANGE;
+    pn532_packetbuffer[1] = 1;                      /* Card number */
+    pn532_packetbuffer[2] = MIFARE_CMD_INCREMENT;       /* Mifare Write command = 0xA0 */
+    pn532_packetbuffer[3] = blockNumber;            /* Block Number (0..63 for 1K, 0..255 for 4K) */
+    pn532_packetbuffer[4] = value & 0x000000ff;
+    pn532_packetbuffer[5] = (value & 0x0000ff00) >> 8;
+    pn532_packetbuffer[6] = (value & 0x00ff0000) >> 16;
+    pn532_packetbuffer[7] = (value & 0xff000000) >> 24;
+
+    /* Send the command */
+    if (HAL(writeCommand)(pn532_packetbuffer, 8)) {
+        return 0;
+    }
+
+    /* Read the response packet */
+    return (0 < HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer)));
+}
+
+uint8_t PN532::mifareclassic_DecrementValueBlock (uint8_t blockNumber, uint32_t value)
+{
+    /* Prepare the first command */
+    pn532_packetbuffer[0] = PN532_COMMAND_INDATAEXCHANGE;
+    pn532_packetbuffer[1] = 1;                      /* Card number */
+    pn532_packetbuffer[2] = MIFARE_CMD_DECREMENT;       /* Mifare Write command = 0xA0 */
+    pn532_packetbuffer[3] = blockNumber;            /* Block Number (0..63 for 1K, 0..255 for 4K) */
+    pn532_packetbuffer[4] = value & 0x000000ff;
+    pn532_packetbuffer[5] = (value & 0x0000ff00) >> 8;
+    pn532_packetbuffer[6] = (value & 0x00ff0000) >> 16;
+    pn532_packetbuffer[7] = (value & 0xff000000) >> 24;
+
+    /* Send the command */
+    if (HAL(writeCommand)(pn532_packetbuffer, 8)) {
+        return 0;
+    }
+
+    /* Read the response packet */
+    return (0 < HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer)));
+}
+
+uint8_t PN532::mifareclassic_ReadValueBlock (uint8_t blockNumber, uint32_t &value)
+{
+    uint8_t sectorbuffer[16];
+    if(!(mifareclassic_ReadDataBlock(blockNumber, sectorbuffer))) {
+      return 0;
+    }
+    value = ((uint32_t)sectorbuffer[3] << 24) | ((uint32_t)sectorbuffer[2] << 16) |\
+    ((uint32_t)sectorbuffer[1] << 8) | ((uint32_t)sectorbuffer[0]);
+    return 1;
+}
+uint8_t PN532::mifareclassic_FormatValue (uint8_t blockNumber, uint32_t value)
+{
+    uint8_t sectorbuffer[16];
+    sectorbuffer[0]  = (value & 0x000000ff);
+    sectorbuffer[1]  = (value & 0x0000ff00) >> 8;
+    sectorbuffer[2]  = (value & 0x00ff0000) >> 16;
+    sectorbuffer[3]  = (value & 0xff000000) >> 24;
+    uint32_t invVal = ~value;
+    sectorbuffer[4]  = (invVal & 0x000000ff);
+    sectorbuffer[5]  = (invVal & 0x0000ff00) >> 8;
+    sectorbuffer[6]  = (invVal & 0x00ff0000) >> 16;
+    sectorbuffer[7]  = (invVal & 0xff000000) >> 24;
+    sectorbuffer[8]  = (value & 0x000000ff);
+    sectorbuffer[9]  = (value & 0x0000ff00) >> 8;
+    sectorbuffer[10] = (value & 0x00ff0000) >> 16;
+    sectorbuffer[11] = (value & 0xff000000) >> 24;
+    sectorbuffer[12] = blockNumber;
+    sectorbuffer[13] = (uint8_t)(~blockNumber); /* casting since def it is int */
+    sectorbuffer[14] = blockNumber;
+    sectorbuffer[15] = (uint8_t)(~blockNumber);
+    if (!(mifareclassic_WriteDataBlock (blockNumber, sectorbuffer)))
+        return 0;
+    return 1;
+}
+
+
 /**************************************************************************/
 /*!
     Formats a Mifare Classic card to store NDEF Records
